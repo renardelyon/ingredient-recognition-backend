@@ -23,11 +23,11 @@ func (h *IngredientHandler) DetectIngredients(c *gin.Context) {
 		return
 	}
 
-	ingredients, err := h.detectorService.DetectIngredientsFromImage(file)
+	ingredients, err := h.detectorService.DetectIngredientsFromImage(c.Request.Context(), file)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to detect ingredients"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to detect ingredients", "details": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, ingredients)
+	c.JSON(http.StatusOK, gin.H{"ingredients": ingredients})
 }

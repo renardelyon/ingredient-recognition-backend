@@ -9,6 +9,8 @@ type Config struct {
 	ServerPort      string `json:"server_port"`
 	ImageServiceURL string `json:"image_service_url"`
 	ServerAddress   string `json:"server_address"`
+	AWSRegion       string `json:"aws_region"`
+	AWSBucket       string `json:"aws_bucket"`
 }
 
 func LoadConfig() (*Config, error) {

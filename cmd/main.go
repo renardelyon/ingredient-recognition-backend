@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"ingredient-recognition-backend/internal/aws"
 	"ingredient-recognition-backend/internal/config"
 	"ingredient-recognition-backend/internal/handler"
 	"ingredient-recognition-backend/internal/service"
@@ -16,8 +18,14 @@ func main() {
 		log.Fatalf("could not load config: %v", err)
 	}
 
+	// Initialize AWS client
+	awsClient, err := aws.NewAWSClient(context.TODO(), cfg.AWSRegion, cfg.AWSBucket)
+	if err != nil {
+		log.Fatalf("could not initialize AWS client: %v", err)
+	}
+
 	// Initialize services and handlers
-	detectorService := service.NewDetectorService()
+	detectorService := service.NewDetectorService(awsClient)
 	ingredientHandler := handler.NewIngredientHandler(detectorService)
 
 	// Create Gin router
