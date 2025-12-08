@@ -31,3 +31,20 @@ func (h *IngredientHandler) DetectIngredients(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"ingredients": ingredients})
 }
+
+// DetectIngredientsWithCustomLabels detects ingredients using a trained custom labels model
+func (h *IngredientHandler) DetectIngredientsWithCustomLabels(c *gin.Context) {
+	file, err := c.FormFile("image")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid image file"})
+		return
+	}
+
+	ingredients, err := h.detectorService.DetectIngredientsFromImageWithCustomLabels(c.Request.Context(), file)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to detect ingredients with custom labels", "details": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ingredients": ingredients})
+}

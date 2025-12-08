@@ -28,11 +28,24 @@ func main() {
 	detectorService := service.NewDetectorService(awsClient)
 	ingredientHandler := handler.NewIngredientHandler(detectorService)
 
+	// Initialize custom labels service if configuration is available
+	var customDetectorService service.DetectorService
+	if cfg.RekognitionProjectARN != "" && cfg.RekognitionModelVersion != "" {
+		customConfig := &service.DetectorConfig{
+			ProjectARN:    cfg.RekognitionProjectARN,
+			ModelVersion:  cfg.RekognitionModelVersion,
+			MinConfidence: cfg.RekognitionMinConfidence,
+		}
+		customDetectorService = service.NewDetectorServiceWithCustomLabels(awsClient, customConfig)
+		ingredientHandler = handler.NewIngredientHandler(customDetectorService)
+	}
+
 	// Create Gin router
 	router := gin.Default()
 
 	// Set up routes
 	router.POST("/detect", ingredientHandler.DetectIngredients)
+	router.POST("/detect-custom", ingredientHandler.DetectIngredientsWithCustomLabels)
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
