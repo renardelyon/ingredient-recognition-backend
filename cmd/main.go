@@ -5,8 +5,13 @@ import (
 	"ingredient-recognition-backend/internal/aws"
 	"ingredient-recognition-backend/internal/config"
 	"ingredient-recognition-backend/internal/handler"
+
+	// "ingredient-recognition-backend/internal/middleware"
+
 	"ingredient-recognition-backend/internal/service"
 	"log"
+
+	// "time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -23,6 +28,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("could not initialize AWS client: %v", err)
 	}
+
+	// // Initialize DynamoDB user repository
+	// userRepo := repository.NewDynamoDBUserRepository(awsClient.DynamoDB, cfg.DynamoDBTable)
+
+	// // Initialize auth service
+	// authService := service.NewAuthService(userRepo, cfg.JWTSecret, time.Duration(cfg.JWTExpiry)*time.Hour)
 
 	// Initialize services and handlers
 	detectorService := service.NewDetectorService(awsClient)
@@ -43,12 +54,18 @@ func main() {
 	// Create Gin router
 	router := gin.Default()
 
-	// Set up routes
-	router.POST("/detect", ingredientHandler.DetectIngredients)
-	router.POST("/detect-custom", ingredientHandler.DetectIngredientsWithCustomLabels)
+	// Public routes (no auth required)
+	// router.POST("/auth/register", authHandler.Register)
+	// router.POST("/auth/login", authHandler.Login)
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
+
+	// Protected routes (auth required)
+	protected := router.Group("/api")
+	// protected.Use(middleware.AuthMiddleware(authService))
+	protected.POST("/detect", ingredientHandler.DetectIngredients)
+	protected.POST("/detect-custom", ingredientHandler.DetectIngredientsWithCustomLabels)
 
 	// Start the server
 	log.Printf("Starting server on %s", cfg.ServerAddress)

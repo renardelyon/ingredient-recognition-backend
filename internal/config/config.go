@@ -14,6 +14,7 @@ type Config struct {
 	RekognitionProjectARN    string  `json:"rekognition_project_arn"`
 	RekognitionModelVersion  string  `json:"rekognition_model_version"`
 	RekognitionMinConfidence float32 `json:"rekognition_min_confidence"`
+	DynamoDBTable            string  `json:"dynamodb_table"`
 }
 
 func LoadConfig() (*Config, error) {
