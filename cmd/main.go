@@ -66,8 +66,7 @@ func main() {
 	// Protected routes (auth required)
 	protected := router.Group("/api")
 	protected.Use(middleware.AuthMiddleware(authService))
-	protected.POST("/detect", ingredientHandler.DetectIngredients)
-	protected.POST("/detect-custom", ingredientHandler.DetectIngredientsWithCustomLabels)
+	protected.POST("/detect", ingredientHandler.DetectIngredientsWithCustomLabels)
 
 	// Start the server
 	log.Printf("Starting server on %s", cfg.ServerAddress)

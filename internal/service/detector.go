@@ -11,9 +11,7 @@ import (
 
 // DetectorService defines the interface for detecting ingredients from images.
 type DetectorService interface {
-	DetectIngredients(ctx context.Context, imageData []byte) ([]domain.Ingredient, error)
 	DetectIngredientsFromImage(ctx context.Context, file *multipart.FileHeader) ([]domain.Ingredient, error)
-	DetectIngredientsWithCustomLabels(ctx context.Context, imageData []byte) ([]domain.Ingredient, error)
 	DetectIngredientsFromImageWithCustomLabels(ctx context.Context, file *multipart.FileHeader) ([]domain.Ingredient, error)
 }
 
@@ -43,19 +41,6 @@ func NewDetectorServiceWithCustomLabels(awsClient *aws.AWSClient, config *Detect
 	}
 }
 
-// DetectIngredients processes the given image data using AWS Rekognition and returns detected ingredients.
-func (d *detectorService) DetectIngredients(ctx context.Context, imageData []byte) ([]domain.Ingredient, error) {
-	// Use AWS Rekognition to detect labels
-	labels, err := d.awsClient.Rekognition.DetectLabels(ctx, imageData)
-	if err != nil {
-		return nil, err
-	}
-
-	// Convert labels to ingredients
-	ingredients := d.labelsToIngredients(labels)
-	return ingredients, nil
-}
-
 // DetectIngredientsFromImage reads an uploaded file and detects ingredients.
 func (d *detectorService) DetectIngredientsFromImage(ctx context.Context, file *multipart.FileHeader) ([]domain.Ingredient, error) {
 	// Open the uploaded file
@@ -72,23 +57,13 @@ func (d *detectorService) DetectIngredientsFromImage(ctx context.Context, file *
 	}
 
 	// Detect ingredients from image data
-	return d.DetectIngredients(ctx, buf)
-}
-
-// DetectIngredientsWithCustomLabels uses custom labels to detect ingredients
-func (d *detectorService) DetectIngredientsWithCustomLabels(ctx context.Context, imageData []byte) ([]domain.Ingredient, error) {
-	if d.config == nil {
-		return nil, fmt.Errorf("custom labels configuration not set")
-	}
-
-	// Use AWS Rekognition Custom Labels to detect ingredients
-	labels, err := d.awsClient.Rekognition.DetectCustomLabels(ctx, imageData, d.config.ProjectARN, d.config.ModelVersion, d.config.MinConfidence)
+	labels, err := d.awsClient.Rekognition.DetectLabels(ctx, buf)
 	if err != nil {
 		return nil, err
 	}
 
-	// Convert labels with confidence scores to ingredients
-	ingredients := d.customLabelsToIngredients(labels)
+	// Convert labels to ingredients
+	ingredients := d.labelsToIngredients(labels)
 	return ingredients, nil
 }
 
@@ -108,7 +83,18 @@ func (d *detectorService) DetectIngredientsFromImageWithCustomLabels(ctx context
 	}
 
 	// Detect ingredients from image data using custom labels
-	return d.DetectIngredientsWithCustomLabels(ctx, buf)
+	if d.config == nil {
+		return nil, fmt.Errorf("custom labels configuration not set")
+	}
+
+	labels, err := d.awsClient.Rekognition.DetectCustomLabels(ctx, buf, d.config.ProjectARN, d.config.ModelVersion, d.config.MinConfidence)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert labels with confidence scores to ingredients
+	ingredients := d.customLabelsToIngredients(labels)
+	return ingredients, nil
 }
 
 // labelsToIngredients converts AWS Rekognition labels to domain Ingredient objects

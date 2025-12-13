@@ -65,7 +65,7 @@ func (a *authService) Register(ctx context.Context, req *domain.UserRegistration
 	}
 
 	// Generate JWT token
-	token, err := a.generateToken(user.Id, user.Email)
+	token, err := a.generateToken(user.Id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
@@ -93,7 +93,7 @@ func (a *authService) Login(ctx context.Context, req *domain.UserLoginRequest) (
 	}
 
 	// Generate JWT token
-	token, err := a.generateToken(user.Id, user.Email)
+	token, err := a.generateToken(user.Id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
@@ -147,7 +147,7 @@ func (a *authService) GetUserFromToken(ctx context.Context, token string) (*doma
 }
 
 // generateToken generates a JWT token
-func (a *authService) generateToken(userID, email string) (string, error) {
+func (a *authService) generateToken(userID string) (string, error) {
 	claims := jwt.RegisteredClaims{
 		Subject:   userID,
 		ExpiresAt: jwt.NewNumericDate(time.Now().Add(a.expiryTime)),
