@@ -15,6 +15,8 @@ type Config struct {
 	RekognitionModelVersion  string  `json:"rekognition_model_version"`
 	RekognitionMinConfidence float32 `json:"rekognition_min_confidence"`
 	DynamoDBTable            string  `json:"dynamodb_table"`
+	JWTSecret                string  `json:"jwt_secret"`
+	JWTExpiry                int     `json:"jwt_expiry_hours"`
 }
 
 func LoadConfig() (*Config, error) {

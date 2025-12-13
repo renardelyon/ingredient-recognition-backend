@@ -5,11 +5,11 @@ import (
 	"ingredient-recognition-backend/internal/aws"
 	"ingredient-recognition-backend/internal/config"
 	"ingredient-recognition-backend/internal/handler"
-
-	// "ingredient-recognition-backend/internal/middleware"
-
+	"ingredient-recognition-backend/internal/middleware"
+	"ingredient-recognition-backend/internal/repository"
 	"ingredient-recognition-backend/internal/service"
 	"log"
+	"time"
 
 	// "time"
 
@@ -29,15 +29,16 @@ func main() {
 		log.Fatalf("could not initialize AWS client: %v", err)
 	}
 
-	// // Initialize DynamoDB user repository
-	// userRepo := repository.NewDynamoDBUserRepository(awsClient.DynamoDB, cfg.DynamoDBTable)
+	// Initialize user repository
+	userRepo := repository.NewUserRepository(awsClient.DynamoDB, cfg.DynamoDBTable)
 
-	// // Initialize auth service
-	// authService := service.NewAuthService(userRepo, cfg.JWTSecret, time.Duration(cfg.JWTExpiry)*time.Hour)
+	// Initialize auth service
+	authService := service.NewAuthService(userRepo, cfg.JWTSecret, time.Duration(cfg.JWTExpiry)*time.Hour)
 
 	// Initialize services and handlers
 	detectorService := service.NewDetectorService(awsClient)
 	ingredientHandler := handler.NewIngredientHandler(detectorService)
+	authHandler := handler.NewAuthHandler(authService)
 
 	// Initialize custom labels service if configuration is available
 	var customDetectorService service.DetectorService
@@ -55,15 +56,16 @@ func main() {
 	router := gin.Default()
 
 	// Public routes (no auth required)
-	// router.POST("/auth/register", authHandler.Register)
-	// router.POST("/auth/login", authHandler.Login)
+	router.POST("/auth/register", authHandler.Register)
+	router.POST("/auth/login", authHandler.Login)
+
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
 
 	// Protected routes (auth required)
 	protected := router.Group("/api")
-	// protected.Use(middleware.AuthMiddleware(authService))
+	protected.Use(middleware.AuthMiddleware(authService))
 	protected.POST("/detect", ingredientHandler.DetectIngredients)
 	protected.POST("/detect-custom", ingredientHandler.DetectIngredientsWithCustomLabels)
 

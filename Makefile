@@ -13,6 +13,11 @@ init:
 tidy:
 	$(GOCMD) mod tidy
 
+build:
+	$(GOCMD) build -o bin/ingredient-detector ./cmd
+
 run:
 	echo "for local development, please run: make run ENV=local"
 	$(GORUN) cmd/main.go
+
+	
