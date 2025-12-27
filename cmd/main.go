@@ -52,6 +52,10 @@ func main() {
 		ingredientHandler = handler.NewIngredientHandler(customDetectorService)
 	}
 
+	// Initialize recipe service with Bedrock
+	recipeService := service.NewRecipeService(awsClient.BedrockRuntime, cfg.BedrockModelID)
+	recipeHandler := handler.NewRecipeHandler(recipeService)
+
 	// Create Gin router
 	router := gin.Default()
 
@@ -65,8 +69,11 @@ func main() {
 
 	// Protected routes (auth required)
 	protected := router.Group("/api")
-	protected.Use(middleware.AuthMiddleware(authService))
-	protected.POST("/detect", ingredientHandler.DetectIngredientsWithCustomLabels)
+
+	routeVersion := protected.Group("/v1")
+	routeVersion.Use(middleware.AuthMiddleware(authService))
+	routeVersion.POST("/detect", ingredientHandler.DetectIngredientsWithCustomLabels)
+	routeVersion.POST("/recipes/recommend", recipeHandler.RecommendRecipes)
 
 	// Start the server
 	log.Printf("Starting server on %s", cfg.ServerAddress)

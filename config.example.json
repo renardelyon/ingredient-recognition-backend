@@ -1,0 +1,15 @@
+{
+  "server_port": "8080",
+  "server_address": ":8080",
+  "image_service_url": "http://localhost:8080",
+  "aws_region": "us-east-1",
+  "aws_bucket": "ingredient-recognition-images",
+  "rekognition_project_arn": "arn:aws:rekognition:us-east-1:YOUR_ACCOUNT_ID:project/ingredients-recognition/version/ingredients-recognition.2025-12-08T08.23.04/YOUR_VERSION_ID",
+  "rekognition_model_version": "1.0",
+  "rekognition_min_confidence": 0.5,
+  "jwt_secret": "your-secret-key-change-this-in-production",
+  "jwt_expiry_hours": 24,
+  "dynamodb_table": "Users",
+  "lambda_check_stop_function": "check-and-stop-rekognition-model",
+  "bedrock_model_id": "anthropic.claude-haiku-4-5-20251001-v1:0"
+}

@@ -17,6 +17,7 @@ type Config struct {
 	DynamoDBTable            string  `json:"dynamodb_table"`
 	JWTSecret                string  `json:"jwt_secret"`
 	JWTExpiry                int     `json:"jwt_expiry_hours"`
+	BedrockModelID           string  `json:"bedrock_model_id"`
 }
 
 func LoadConfig() (*Config, error) {
