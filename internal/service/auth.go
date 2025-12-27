@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"ingredient-recognition-backend/internal/domain"
 	repointerface "ingredient-recognition-backend/internal/repository/repo_interface"
+	"ingredient-recognition-backend/pkg/logger"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -37,15 +39,19 @@ func NewAuthService(userRepo repointerface.UserRepository, jwtSecret string, exp
 
 // Register registers a new user
 func (a *authService) Register(ctx context.Context, req *domain.UserRegistrationRequest) (*domain.AuthResponse, error) {
+	logger.Info(ctx, "User registration attempt", zap.String("email", req.Email))
+
 	// Check if user already exists
 	_, err := a.userRepo.GetByEmail(ctx, req.Email)
 	if err == nil {
+		logger.Warn(ctx, "User registration failed: user already exists", zap.String("email", req.Email))
 		return nil, domain.ErrUserAlreadyExists
 	}
 
 	// Hash password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
+		logger.Error(ctx, "Failed to hash password", err, zap.String("email", req.Email))
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
@@ -61,12 +67,14 @@ func (a *authService) Register(ctx context.Context, req *domain.UserRegistration
 
 	// Save user to repository
 	if err := a.userRepo.Create(ctx, user); err != nil {
+		logger.Error(ctx, "Failed to create user in repository", err, zap.String("email", req.Email))
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
 	// Generate JWT token
 	token, err := a.generateToken(user.Id)
 	if err != nil {
+		logger.Error(ctx, "Failed to generate JWT token", err, zap.String("user_id", user.Id))
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
 
@@ -81,20 +89,25 @@ func (a *authService) Register(ctx context.Context, req *domain.UserRegistration
 
 // Login authenticates a user
 func (a *authService) Login(ctx context.Context, req *domain.UserLoginRequest) (*domain.AuthResponse, error) {
+	logger.Info(ctx, "User login attempt", zap.String("email", req.Email))
+
 	// Get user by email
 	user, err := a.userRepo.GetByEmail(ctx, req.Email)
 	if err != nil {
+		logger.Warn(ctx, "Login failed: user not found", zap.String("email", req.Email))
 		return nil, domain.ErrUserNotFound
 	}
 
 	// Compare passwords
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
+		logger.Warn(ctx, "Login failed: invalid password", zap.String("email", req.Email))
 		return nil, domain.ErrInvalidPassword
 	}
 
 	// Generate JWT token
 	token, err := a.generateToken(user.Id)
 	if err != nil {
+		logger.Error(ctx, "Failed to generate JWT token during login", err, zap.String("user_id", user.Id))
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
 

@@ -8,26 +8,42 @@ import (
 	"ingredient-recognition-backend/internal/middleware"
 	"ingredient-recognition-backend/internal/repository"
 	"ingredient-recognition-backend/internal/service"
+	"ingredient-recognition-backend/pkg/logger"
 	"log"
 	"time"
 
 	// "time"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 func main() {
+	// Initialize structured logger with zap
+	if err := logger.InitializeGlobalLogger("logs/app.log", true); err != nil {
+		log.Fatalf("could not initialize logger: %v", err)
+	}
+	defer func() {
+		if l := logger.GetLogger(); l != nil {
+			l.Sync()
+		}
+	}()
+
+	ctx := context.Background()
+	logger.Info(ctx, "Application starting")
+
 	// Load configuration
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		log.Fatalf("could not load config: %v", err)
+		logger.Fatal(ctx, "Failed to load configuration", err)
 	}
 
 	// Initialize AWS client
 	awsClient, err := aws.NewAWSClient(context.TODO(), cfg.AWSRegion, cfg.AWSBucket)
 	if err != nil {
-		log.Fatalf("could not initialize AWS client: %v", err)
+		logger.Fatal(ctx, "Failed to initialize AWS client", err, zap.String("region", cfg.AWSRegion))
 	}
+	logger.Info(ctx, "AWS client initialized", zap.String("region", cfg.AWSRegion))
 
 	// Initialize user repository
 	userRepo := repository.NewUserRepository(awsClient.DynamoDB, cfg.DynamoDBTable)
@@ -59,11 +75,16 @@ func main() {
 	// Create Gin router
 	router := gin.Default()
 
+	// Add logging and error handling middleware
+	router.Use(middleware.LoggingMiddleware())
+	router.Use(middleware.ErrorHandlingMiddleware())
+
 	// Public routes (no auth required)
 	router.POST("/auth/register", authHandler.Register)
 	router.POST("/auth/login", authHandler.Login)
 
 	router.GET("/health", func(c *gin.Context) {
+		logger.Debug(c.Request.Context(), "Health check requested")
 		c.JSON(200, gin.H{"status": "ok"})
 	})
 
@@ -76,8 +97,8 @@ func main() {
 	routeVersion.POST("/recipes/recommend", recipeHandler.RecommendRecipes)
 
 	// Start the server
-	log.Printf("Starting server on %s", cfg.ServerAddress)
+	logger.Info(ctx, "Starting server", zap.String("address", cfg.ServerAddress))
 	if err := router.Run(cfg.ServerAddress); err != nil {
-		log.Fatalf("could not start server: %v", err)
+		logger.Fatal(ctx, "Failed to start server", err, zap.String("address", cfg.ServerAddress))
 	}
 }

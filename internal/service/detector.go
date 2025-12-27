@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"ingredient-recognition-backend/internal/aws"
 	"ingredient-recognition-backend/internal/domain"
+	"ingredient-recognition-backend/pkg/logger"
 	"mime/multipart"
 	"strings"
+
+	"go.uber.org/zap"
 )
 
 // DetectorService defines the interface for detecting ingredients from images.
@@ -43,9 +46,12 @@ func NewDetectorServiceWithCustomLabels(awsClient *aws.AWSClient, config *Detect
 
 // DetectIngredientsFromImage reads an uploaded file and detects ingredients.
 func (d *detectorService) DetectIngredientsFromImage(ctx context.Context, file *multipart.FileHeader) ([]domain.Ingredient, error) {
+	logger.Info(ctx, "Starting ingredient detection from image", zap.String("filename", file.Filename), zap.Int64("size_bytes", file.Size))
+
 	// Open the uploaded file
 	src, err := file.Open()
 	if err != nil {
+		logger.Error(ctx, "Failed to open uploaded file", err, zap.String("filename", file.Filename))
 		return nil, err
 	}
 	defer src.Close()
@@ -53,25 +59,31 @@ func (d *detectorService) DetectIngredientsFromImage(ctx context.Context, file *
 	// Read file contents
 	buf := make([]byte, file.Size)
 	if _, err := src.Read(buf); err != nil {
+		logger.Error(ctx, "Failed to read file contents", err, zap.String("filename", file.Filename))
 		return nil, err
 	}
 
 	// Detect ingredients from image data
 	labels, err := d.awsClient.Rekognition.DetectLabels(ctx, buf)
 	if err != nil {
+		logger.Error(ctx, "Failed to detect labels from Rekognition", err, zap.String("filename", file.Filename))
 		return nil, err
 	}
 
 	// Convert labels to ingredients
 	ingredients := d.labelsToIngredients(labels)
+	logger.Info(ctx, "Ingredient detection completed", zap.String("filename", file.Filename), zap.Int("ingredient_count", len(ingredients)))
 	return ingredients, nil
 }
 
 // DetectIngredientsFromImageWithCustomLabels reads an uploaded file and detects ingredients using custom labels
 func (d *detectorService) DetectIngredientsFromImageWithCustomLabels(ctx context.Context, file *multipart.FileHeader) ([]domain.Ingredient, error) {
+	logger.Info(ctx, "Starting custom labels ingredient detection", zap.String("filename", file.Filename), zap.Int64("size_bytes", file.Size))
+
 	// Open the uploaded file
 	src, err := file.Open()
 	if err != nil {
+		logger.Error(ctx, "Failed to open uploaded file for custom labels", err, zap.String("filename", file.Filename))
 		return nil, err
 	}
 	defer src.Close()
@@ -79,21 +91,25 @@ func (d *detectorService) DetectIngredientsFromImageWithCustomLabels(ctx context
 	// Read file contents
 	buf := make([]byte, file.Size)
 	if _, err := src.Read(buf); err != nil {
+		logger.Error(ctx, "Failed to read file contents for custom labels", err, zap.String("filename", file.Filename))
 		return nil, err
 	}
 
 	// Detect ingredients from image data using custom labels
 	if d.config == nil {
+		logger.Error(ctx, "Custom labels configuration not set", nil, zap.String("filename", file.Filename))
 		return nil, fmt.Errorf("custom labels configuration not set")
 	}
 
 	labels, err := d.awsClient.Rekognition.DetectCustomLabels(ctx, buf, d.config.ProjectARN, d.config.ModelVersion, d.config.MinConfidence)
 	if err != nil {
+		logger.Error(ctx, "Failed to detect custom labels from Rekognition", err, zap.String("filename", file.Filename), zap.String("project_arn", d.config.ProjectARN))
 		return nil, err
 	}
 
 	// Convert labels with confidence scores to ingredients
 	ingredients := d.customLabelsToIngredients(labels)
+	logger.Info(ctx, "Custom labels ingredient detection completed", zap.String("filename", file.Filename), zap.Int("ingredient_count", len(ingredients)))
 	return ingredients, nil
 }
 

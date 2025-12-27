@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"ingredient-recognition-backend/internal/model"
 	"ingredient-recognition-backend/internal/request"
+	"ingredient-recognition-backend/pkg/logger"
 	"ingredient-recognition-backend/pkg/utils"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
+	"go.uber.org/zap"
 )
 
 // RecipeService defines methods for recipe recommendations
@@ -35,22 +37,28 @@ func NewRecipeService(bedrockClient *bedrockruntime.Client, modelID string) Reci
 
 // RecommendRecipes generates recipe recommendations based on ingredients
 func (r *recipeService) RecommendRecipes(ctx context.Context, ingredients []string) (*model.RecipeRecommendation, error) {
+	logger.Info(ctx, "Starting recipe recommendation", zap.Int("ingredient_count", len(ingredients)), zap.String("ingredients", strings.Join(ingredients, ", ")))
+
 	if len(ingredients) == 0 {
+		logger.Warn(ctx, "Recipe recommendation requested with no ingredients")
 		return nil, fmt.Errorf("at least one ingredient is required")
 	}
 
 	// Build the prompt for Claude
 	prompt := buildRecipePrompt(ingredients)
+	logger.Debug(ctx, "Generated prompt for Bedrock", zap.Int("prompt_length", len(prompt)))
 
 	// Call Bedrock with Claude
 	response, err := r.callBedrock(ctx, prompt)
 	if err != nil {
+		logger.Error(ctx, "Failed to call Bedrock API", err, zap.String("model_id", r.modelID))
 		return nil, fmt.Errorf("failed to call Bedrock: %w", err)
 	}
 
 	// Parse the response
 	recommendation, err := parseRecipeResponse(response, ingredients)
 	if err != nil {
+		logger.Error(ctx, "Failed to parse recipe response", err)
 		return nil, fmt.Errorf("failed to parse recipe response: %w", err)
 	}
 
@@ -59,6 +67,8 @@ func (r *recipeService) RecommendRecipes(ctx context.Context, ingredients []stri
 
 // callBedrock invokes the Bedrock API with the given prompt
 func (r *recipeService) callBedrock(ctx context.Context, prompt string) (string, error) {
+	logger.Debug(ctx, "Calling Bedrock API", zap.String("model_id", r.modelID))
+
 	// Prepare the request payload for Claude model
 	payload := request.BedrockModelConfig{
 		AnthropicVersion: "bedrock-2023-06-01",
@@ -68,10 +78,12 @@ func (r *recipeService) callBedrock(ctx context.Context, prompt string) (string,
 
 	reqBody, err := json.Marshal(payload)
 	if err != nil {
+		logger.Error(ctx, "Failed to marshal Bedrock request payload", err)
 		return "", fmt.Errorf("failed to marshal payload: %w", err)
 	}
 
 	// Invoke the model
+	logger.Debug(ctx, "Invoking Bedrock model", zap.Int("payload_size", len(reqBody)))
 	output, err := r.bedrockClient.InvokeModel(ctx, &bedrockruntime.InvokeModelInput{
 		ModelId:     aws.String(r.modelID),
 		ContentType: aws.String("application/json"),
@@ -79,12 +91,14 @@ func (r *recipeService) callBedrock(ctx context.Context, prompt string) (string,
 		Body:        reqBody,
 	})
 	if err != nil {
+		logger.Error(ctx, "Bedrock model invocation failed", err, zap.String("model_id", r.modelID))
 		return "", fmt.Errorf("failed to invoke model: %w", err)
 	}
 
 	// Parse the response
 	var result map[string]any
 	if err := json.Unmarshal(output.Body, &result); err != nil {
+		logger.Error(ctx, "Failed to parse Bedrock model response", err)
 		return "", fmt.Errorf("failed to parse model response: %w", err)
 	}
 
@@ -92,11 +106,13 @@ func (r *recipeService) callBedrock(ctx context.Context, prompt string) (string,
 	if content, ok := result["content"].([]any); ok && len(content) > 0 {
 		if textBlock, ok := content[0].(map[string]any); ok {
 			if text, ok := textBlock["text"].(string); ok {
+				logger.Debug(ctx, "Successfully extracted text from Bedrock response", zap.Int("text_length", len(text)))
 				return text, nil
 			}
 		}
 	}
 
+	logger.Error(ctx, "Unexpected response format from Bedrock", nil)
 	return "", fmt.Errorf("unexpected response format from Bedrock")
 }
 
