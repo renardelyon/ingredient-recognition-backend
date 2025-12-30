@@ -50,6 +50,8 @@ jobs:
 
       - name: Get EC2 Instance IP
         id: get-ip
+        env:
+          APP_NAME: ${{ env.APP_NAME }}
         run: |
           echo "🔍 Looking for EC2 instance..."
           
