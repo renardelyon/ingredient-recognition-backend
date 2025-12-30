@@ -55,7 +55,7 @@ jobs:
           
           # Find instance by Name tag
           INSTANCE_IP=$(aws ec2 describe-instances \
-            --filters "Name=tag:Name,Values=recipe-recommendation-instance" \
+            --filters "Name=tag:Name,Values=$APP_NAME-instance" \
                       "Name=instance-state-name,Values=running" \
             --query 'Reservations[0].Instances[0].PublicIpAddress' \
             --output text \
@@ -67,7 +67,7 @@ jobs:
             
             # Try finding Elastic IP instead
             INSTANCE_IP=$(aws ec2 describe-addresses \
-              --filters "Name=tag:Name,Values=recipe-recommendation-eip" \
+              --filters "Name=tag:Name,Values=$APP_NAME-eip" \
               --query 'Addresses[0].PublicIp' \
               --output text \
               --region ${{ env.AWS_REGION }})
