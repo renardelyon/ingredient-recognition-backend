@@ -1,36 +1,67 @@
 package config
 
 import (
-	"encoding/json"
-	"os"
+	"strings"
+
+	"github.com/spf13/viper"
 )
 
 type Config struct {
-	ServerPort               string  `json:"server_port"`
-	ImageServiceURL          string  `json:"image_service_url"`
-	ServerAddress            string  `json:"server_address"`
-	AWSRegion                string  `json:"aws_region"`
-	AWSBucket                string  `json:"aws_bucket"`
-	RekognitionProjectARN    string  `json:"rekognition_project_arn"`
-	RekognitionModelVersion  string  `json:"rekognition_model_version"`
-	RekognitionMinConfidence float32 `json:"rekognition_min_confidence"`
-	DynamoDBTable            string  `json:"dynamodb_table"`
-	JWTSecret                string  `json:"jwt_secret"`
-	JWTExpiry                int     `json:"jwt_expiry_hours"`
-	BedrockModelID           string  `json:"bedrock_model_id"`
+	ServerPort               string  `mapstructure:"server_port"`
+	ImageServiceURL          string  `mapstructure:"image_service_url"`
+	ServerAddress            string  `mapstructure:"server_address"`
+	AWSRegion                string  `mapstructure:"aws_region"`
+	AWSBucket                string  `mapstructure:"aws_bucket"`
+	RekognitionProjectARN    string  `mapstructure:"rekognition_project_arn"`
+	RekognitionModelVersion  string  `mapstructure:"rekognition_model_version"`
+	RekognitionMinConfidence float32 `mapstructure:"rekognition_min_confidence"`
+	DynamoDBTable            string  `mapstructure:"dynamodb_table"`
+	JWTSecret                string  `mapstructure:"jwt_secret"`
+	JWTExpiry                int     `mapstructure:"jwt_expiry_hours"`
+	BedrockModelID           string  `mapstructure:"bedrock_model_id"`
 }
 
 func LoadConfig() (*Config, error) {
-	file, err := os.Open("config.json")
-	if err != nil {
+	v := viper.New()
+
+	// Set config file settings
+	v.SetConfigName("config")
+	v.SetConfigType("json")
+	v.AddConfigPath(".")
+	v.AddConfigPath("./config")
+	v.AddConfigPath("/etc/ingredient-detector/")
+	v.AddConfigPath("$HOME/.ingredient-detector")
+
+	// Enable environment variable reading
+	v.AutomaticEnv()
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+
+	// Bind environment variables to config keys
+	v.BindEnv("server_port", "SERVER_PORT")
+	v.BindEnv("image_service_url", "IMAGE_SERVICE_URL")
+	v.BindEnv("server_address", "SERVER_ADDRESS")
+	v.BindEnv("aws_region", "AWS_REGION")
+	v.BindEnv("aws_bucket", "AWS_BUCKET")
+	v.BindEnv("rekognition_project_arn", "REKOGNITION_PROJECT_ARN")
+	v.BindEnv("rekognition_model_version", "REKOGNITION_MODEL_VERSION")
+	v.BindEnv("rekognition_min_confidence", "REKOGNITION_MIN_CONFIDENCE")
+	v.BindEnv("dynamodb_table", "DYNAMODB_TABLE")
+	v.BindEnv("jwt_secret", "JWT_SECRET")
+	v.BindEnv("jwt_expiry_hours", "JWT_EXPIRY_HOURS")
+	v.BindEnv("bedrock_model_id", "BEDROCK_MODEL_ID")
+
+	// Try to read config file (ignore error if not found - will use env vars)
+	if err := v.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			// Return error only if it's not a "config file not found" error
+			return nil, err
+		}
+	}
+
+	config := Config{}
+	if err := v.Unmarshal(&config); err != nil {
 		return nil, err
 	}
-	defer file.Close()
 
-	config := &Config{}
-	if err := json.NewDecoder(file).Decode(config); err != nil {
-		return nil, err
-	}
-
-	return config, nil
+	return &config, nil
 }
