@@ -8,14 +8,12 @@ import (
 
 type Config struct {
 	ServerPort               string  `mapstructure:"server_port"`
-	ImageServiceURL          string  `mapstructure:"image_service_url"`
 	ServerAddress            string  `mapstructure:"server_address"`
 	AWSRegion                string  `mapstructure:"aws_region"`
 	AWSBucket                string  `mapstructure:"aws_bucket"`
 	RekognitionProjectARN    string  `mapstructure:"rekognition_project_arn"`
 	RekognitionModelVersion  string  `mapstructure:"rekognition_model_version"`
 	RekognitionMinConfidence float32 `mapstructure:"rekognition_min_confidence"`
-	DynamoDBTable            string  `mapstructure:"dynamodb_table"`
 	JWTSecret                string  `mapstructure:"jwt_secret"`
 	JWTExpiry                int     `mapstructure:"jwt_expiry_hours"`
 	BedrockModelID           string  `mapstructure:"bedrock_model_id"`
@@ -38,14 +36,12 @@ func LoadConfig() (*Config, error) {
 
 	// Bind environment variables to config keys
 	v.BindEnv("server_port", "SERVER_PORT")
-	v.BindEnv("image_service_url", "IMAGE_SERVICE_URL")
 	v.BindEnv("server_address", "SERVER_ADDRESS")
 	v.BindEnv("aws_region", "AWS_REGION")
 	v.BindEnv("aws_bucket", "AWS_BUCKET")
 	v.BindEnv("rekognition_project_arn", "REKOGNITION_PROJECT_ARN")
 	v.BindEnv("rekognition_model_version", "REKOGNITION_MODEL_VERSION")
 	v.BindEnv("rekognition_min_confidence", "REKOGNITION_MIN_CONFIDENCE")
-	v.BindEnv("dynamodb_table", "DYNAMODB_TABLE")
 	v.BindEnv("jwt_secret", "JWT_SECRET")
 	v.BindEnv("jwt_expiry_hours", "JWT_EXPIRY_HOURS")
 	v.BindEnv("bedrock_model_id", "BEDROCK_MODEL_ID")

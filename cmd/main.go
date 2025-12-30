@@ -46,7 +46,7 @@ func main() {
 	logger.Info(ctx, "AWS client initialized", zap.String("region", cfg.AWSRegion))
 
 	// Initialize user repository
-	userRepo := repository.NewUserRepository(awsClient.DynamoDB, cfg.DynamoDBTable)
+	userRepo := repository.NewUserRepository(awsClient.DynamoDB)
 
 	// Initialize auth service
 	authService := service.NewAuthService(userRepo, cfg.JWTSecret, time.Duration(cfg.JWTExpiry)*time.Hour)

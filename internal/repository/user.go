@@ -18,10 +18,10 @@ type UserRepository struct {
 }
 
 // UserRepository creates a new DynamoDB user repository
-func NewUserRepository(client *dynamodb.Client, tableName string) *UserRepository {
+func NewUserRepository(client *dynamodb.Client) *UserRepository {
 	return &UserRepository{
 		client:    client,
-		tableName: tableName,
+		tableName: "Users",
 	}
 }
 

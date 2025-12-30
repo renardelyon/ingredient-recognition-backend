@@ -1,0 +1,178 @@
+name: Deploy Ingredients Recognition App
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: ingredients_recognition_backend
+  APP_NAME: ingredients_recognition_backend
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    environment: production
+
+     # ADD THIS BLOCK - it's missing!
+    permissions:
+      id-token: write   # Required for OIDC authentication
+      contents: read    # Required to checkout code
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5.1.1
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image to Amazon ECR
+        env:
+          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Get EC2 Instance IP
+        id: get-ip
+        run: |
+          echo "🔍 Looking for EC2 instance..."
+          
+          # Find instance by Name tag
+          INSTANCE_IP=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=recipe-recommendation-instance" \
+                      "Name=instance-state-name,Values=running" \
+            --query 'Reservations[0].Instances[0].PublicIpAddress' \
+            --output text \
+            --region ${{ env.AWS_REGION }})
+          
+          if [ "$INSTANCE_IP" = "None" ] || [ -z "$INSTANCE_IP" ]; then
+            echo "❌ Could not find EC2 instance!"
+            echo "Trying to find by Elastic IP tag..."
+            
+            # Try finding Elastic IP instead
+            INSTANCE_IP=$(aws ec2 describe-addresses \
+              --filters "Name=tag:Name,Values=recipe-recommendation-eip" \
+              --query 'Addresses[0].PublicIp' \
+              --output text \
+              --region ${{ env.AWS_REGION }})
+            
+            if [ "$INSTANCE_IP" = "None" ] || [ -z "$INSTANCE_IP" ]; then
+              echo "❌ Could not find EC2 IP by any method!"
+              exit 1
+            fi
+          fi
+          
+          echo "instance_ip=$INSTANCE_IP" >> $GITHUB_OUTPUT
+          echo "✅ Found EC2 IP: $INSTANCE_IP"
+
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          AWS_REGION: ${{ env.AWS_REGION }}
+          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
+          APP_NAME: ${{ env.APP_NAME }}
+          # App configuration via environment variables
+          SERVER_PORT: "8080"
+          SERVER_ADDRESS: ":8080"
+          REKOGNITION_PROJECT_ARN: ${{ secrets.REKOGNITION_PROJECT_ARN }}
+          REKOGNITION_MODEL_VERSION: "1.0"
+          REKOGNITION_MIN_CONFIDENCE: "0.5"
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_EXPIRY_HOURS: "24"
+          BEDROCK_MODEL_ID: ${{ secrets.BEDROCK_MODEL_ID }}
+        with:
+          host: ${{ steps.get-ip.outputs.instance_ip }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          envs: AWS_REGION,ECR_REPOSITORY,APP_NAME,SERVER_PORT,SERVER_ADDRESS,REKOGNITION_PROJECT_ARN,REKOGNITION_MODEL_VERSION,REKOGNITION_MIN_CONFIDENCE,JWT_SECRET,JWT_EXPIRY_HOURS,BEDROCK_MODEL_ID
+          command_timeout: 10m
+          script: |
+            set -e
+            
+            echo "🔐 Logging in to ECR..."
+            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $(aws sts get-caller-identity --query Account --output text).dkr.ecr.$AWS_REGION.amazonaws.com
+            
+            echo "📥 Pulling latest image..."
+            docker pull $(aws sts get-caller-identity --query Account --output text).dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY:latest
+            
+            echo "🛑 Stopping existing container..."
+            docker stop $APP_NAME || true
+            docker rm $APP_NAME || true
+            
+            echo "🚀 Starting new container with environment variables..."
+            docker run -d \
+              --name $APP_NAME \
+              --restart unless-stopped \
+              -p 8080:8080 \
+              -e SERVER_PORT="$SERVER_PORT" \
+              -e SERVER_ADDRESS="$SERVER_ADDRESS" \
+              -e AWS_REGION="$AWS_REGION" \
+              -e REKOGNITION_PROJECT_ARN="$REKOGNITION_PROJECT_ARN" \
+              -e REKOGNITION_MODEL_VERSION="$REKOGNITION_MODEL_VERSION" \
+              -e REKOGNITION_MIN_CONFIDENCE="$REKOGNITION_MIN_CONFIDENCE" \
+              -e JWT_SECRET="$JWT_SECRET" \
+              -e JWT_EXPIRY_HOURS="$JWT_EXPIRY_HOURS" \
+              -e BEDROCK_MODEL_ID="$BEDROCK_MODEL_ID" \
+              $(aws sts get-caller-identity --query Account --output text).dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY:latest
+            
+            echo "⏳ Waiting for container to be ready..."
+            sleep 5
+            
+            echo "✅ Checking container status..."
+            docker ps --filter name=$APP_NAME
+            
+            echo "� Verifying deployment..."
+            MAX_RETRIES=12
+            RETRY_INTERVAL=5
+            RETRY_COUNT=0
+            
+            while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+              # Check if container is running
+              if ! docker ps --filter name=$APP_NAME --filter status=running | grep -q $APP_NAME; then
+                echo "❌ Container is not running!"
+                echo "📋 Container logs:"
+                docker logs --tail 50 $APP_NAME || true
+                exit 1
+              fi
+              
+              # Health check - try to hit the server
+              if curl -sf http://localhost:8080/health > /dev/null 2>&1; then
+                echo "✅ Health check passed! Deployment successful."
+                break
+              fi
+              
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+                echo "❌ Health check failed after $MAX_RETRIES attempts!"
+                echo "📋 Container logs:"
+                docker logs --tail 50 $APP_NAME || true
+                exit 1
+              fi
+              
+              echo "⏳ Waiting for app to be ready... (attempt $RETRY_COUNT/$MAX_RETRIES)"
+              sleep $RETRY_INTERVAL
+            done
+            
+            echo "📋 Container logs (last 20 lines)..."
+            docker logs --tail 20 $APP_NAME || true
+            
+            echo "🧹 Cleaning up old images..."
+            docker image prune -f
+            
+            echo "🎉 Deployment completed successfully!"
