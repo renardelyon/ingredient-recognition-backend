@@ -48,6 +48,14 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
+      - name: Debug OIDC Token
+        env:
+          APP_NAME: ${{ env.APP_NAME }}
+        run: |
+          echo "Name=tag:Name,Values=$APP_NAME-instance"
+          echo "GitHub ref: ${{ github.ref }}"
+          echo "GitHub event: ${{ github.event_name }}"
+      
       - name: Get EC2 Instance IP
         id: get-ip
         env:
