@@ -64,7 +64,6 @@ jobs:
           BEDROCK_MODEL_ID: ${{ secrets.BEDROCK_MODEL_ID }}
           SSM_DOCUMENT_NAME: ${{ secrets.SSM_DOCUMENT_NAME }}
           EC2_INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}
-        with:
         run: |
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "$EC2_INSTANCE_ID" \
