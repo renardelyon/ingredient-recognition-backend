@@ -68,19 +68,19 @@ jobs:
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "$EC2_INSTANCE_ID" \
             --document-name "$SSM_DOCUMENT_NAME" \
-            --parameters '{
-              "AWSRegion": ["$AWS_REGION"],
-              "ECRRepository": ["$ECR_REPOSITORY"],
-              "AppName": ["$APP_NAME"],
-              "ServerPort": ["$SERVER_PORT"],
-              "ServerAddress": ["$SERVER_ADDRESS"],
-              "RekognitionProjectArn": ["$REKOGNITION_PROJECT_ARN"],
-              "RekognitionModelVersion": ["$REKOGNITION_MODEL_VERSION"],
-              "RekognitionMinConfidence": ["$REKOGNITION_MIN_CONFIDENCE"],
-              "JwtSecret": ["$JWT_SECRET"],
-              "JwtExpiryHours": ["$JWT_EXPIRY_HOURS"],
-              "BedrockModelId": ["$BEDROCK_MODEL_ID"]
-            }' \
+            --parameters "{
+              \"AWSRegion\": [\"${AWS_REGION}\"],
+              \"ECRRepository\": [\"${ECR_REPOSITORY}\"],
+              \"AppName\": [\"${APP_NAME}\"],
+              \"ServerPort\": [\"${SERVER_PORT}\"],
+              \"ServerAddress\": [\"${SERVER_ADDRESS}\"],
+              \"RekognitionProjectArn\": [\"${REKOGNITION_PROJECT_ARN}\"],
+              \"RekognitionModelVersion\": [\"${REKOGNITION_MODEL_VERSION}\"],
+              \"RekognitionMinConfidence\": [\"${REKOGNITION_MIN_CONFIDENCE}\"],
+              \"JwtSecret\": [\"${JWT_SECRET}\"],
+              \"JwtExpiryHours\": [\"${JWT_EXPIRY_HOURS}\"],
+              \"BedrockModelId\": [\"${BEDROCK_MODEL_ID}\"]
+            }" \
             --query "Command.CommandId" \
             --output text)
           
