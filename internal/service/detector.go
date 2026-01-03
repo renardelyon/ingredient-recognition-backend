@@ -26,6 +26,7 @@ type detectorService struct {
 
 // DetectorConfig holds configuration for the detector service
 type DetectorConfig struct {
+	ModelArn      string
 	ProjectARN    string
 	ModelVersion  string
 	MinConfidence float32
@@ -79,6 +80,18 @@ func (d *detectorService) DetectIngredientsFromImage(ctx context.Context, file *
 // DetectIngredientsFromImageWithCustomLabels reads an uploaded file and detects ingredients using custom labels
 func (d *detectorService) DetectIngredientsFromImageWithCustomLabels(ctx context.Context, file *multipart.FileHeader) ([]domain.Ingredient, error) {
 	logger.Info(ctx, "Starting custom labels ingredient detection", zap.String("filename", file.Filename), zap.Int64("size_bytes", file.Size))
+	projectArn, modelArn := d.config.ProjectARN, d.config.ModelArn
+
+	canBeUse, err := d.awsClient.Rekognition.CheckAndStartRekognition(ctx, projectArn, modelArn)
+	if err != nil {
+		logger.Error(ctx, "Failed to start Rekognition project version", err, zap.String("project_arn", projectArn), zap.String("model_version", modelArn))
+		return nil, err
+	}
+
+	if !canBeUse {
+		logger.Info(ctx, "Rekognition project version is not ready yet", zap.String("project_arn", projectArn), zap.String("model_version", modelArn))
+		return nil, fmt.Errorf("rekognition project version is not ready yet")
+	}
 
 	// Open the uploaded file
 	src, err := file.Open()
@@ -101,7 +114,7 @@ func (d *detectorService) DetectIngredientsFromImageWithCustomLabels(ctx context
 		return nil, fmt.Errorf("custom labels configuration not set")
 	}
 
-	labels, err := d.awsClient.Rekognition.DetectCustomLabels(ctx, buf, d.config.ProjectARN, d.config.ModelVersion, d.config.MinConfidence)
+	labels, err := d.awsClient.Rekognition.DetectCustomLabels(ctx, buf, projectArn, modelArn, d.config.MinConfidence)
 	if err != nil {
 		logger.Error(ctx, "Failed to detect custom labels from Rekognition", err, zap.String("filename", file.Filename), zap.String("project_arn", d.config.ProjectARN))
 		return nil, err

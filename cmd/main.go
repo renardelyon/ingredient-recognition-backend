@@ -60,6 +60,7 @@ func main() {
 	var customDetectorService service.DetectorService
 	if cfg.RekognitionProjectARN != "" && cfg.RekognitionModelVersion != "" {
 		customConfig := &service.DetectorConfig{
+			ModelArn:      cfg.RekognitionModelARN,
 			ProjectARN:    cfg.RekognitionProjectARN,
 			ModelVersion:  cfg.RekognitionModelVersion,
 			MinConfidence: cfg.RekognitionMinConfidence,

@@ -12,6 +12,7 @@ type Config struct {
 	AWSRegion                string  `mapstructure:"aws_region"`
 	AWSBucket                string  `mapstructure:"aws_bucket"`
 	RekognitionProjectARN    string  `mapstructure:"rekognition_project_arn"`
+	RekognitionModelARN      string  `mapstructure:"rekognition_model_arn"`
 	RekognitionModelVersion  string  `mapstructure:"rekognition_model_version"`
 	RekognitionMinConfidence float32 `mapstructure:"rekognition_min_confidence"`
 	JWTSecret                string  `mapstructure:"jwt_secret"`
@@ -40,6 +41,7 @@ func LoadConfig() (*Config, error) {
 	v.BindEnv("aws_region", "AWS_REGION")
 	v.BindEnv("aws_bucket", "AWS_BUCKET")
 	v.BindEnv("rekognition_project_arn", "REKOGNITION_PROJECT_ARN")
+	v.BindEnv("rekognition_model_arn", "REKOGNITION_MODEL_ARN")
 	v.BindEnv("rekognition_model_version", "REKOGNITION_MODEL_VERSION")
 	v.BindEnv("rekognition_min_confidence", "REKOGNITION_MIN_CONFIDENCE")
 	v.BindEnv("jwt_secret", "JWT_SECRET")

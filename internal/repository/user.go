@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"ingredient-recognition-backend/internal/domain"
+	"ingredient-recognition-backend/pkg/logger"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"go.uber.org/zap"
 )
 
 // UserRepository is a DynamoDB implementation of UserRepository
@@ -89,23 +91,26 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*domain.
 
 // GetByID retrieves a user by ID from DynamoDB
 func (r *UserRepository) GetByID(ctx context.Context, id string) (*domain.User, error) {
-	result, err := r.client.GetItem(ctx, &dynamodb.GetItemInput{
-		TableName: aws.String(r.tableName),
-		Key: map[string]types.AttributeValue{
-			"id": &types.AttributeValueMemberS{Value: id},
+	result, err := r.client.Query(ctx, &dynamodb.QueryInput{
+		TableName:              aws.String(r.tableName),
+		KeyConditionExpression: aws.String("id = :id"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":id": &types.AttributeValueMemberS{Value: id},
 		},
+		Limit: aws.Int32(1),
 	})
 
 	if err != nil {
+		logger.Error(ctx, "DynamoDB GetItem failed", err, zap.String("user_id", id))
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 
-	if result.Item == nil {
+	if result.Count == 0 {
 		return nil, domain.ErrUserNotFound
 	}
 
 	var user domain.User
-	err = attributevalue.UnmarshalMap(result.Item, &user)
+	err = attributevalue.UnmarshalMap(result.Items[0], &user)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal user: %w", err)
 	}

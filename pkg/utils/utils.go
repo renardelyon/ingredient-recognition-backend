@@ -52,3 +52,16 @@ func IsValidJSON(s string) bool {
 	var js any
 	return json.Unmarshal([]byte(s), &js) == nil
 }
+
+// ParseModelARN extracts the project ARN and model version from a full model ARN string
+func ParseModelARNTOModelVersion(fullARN string) (modelVersion string, err error) {
+	// Full ARN format: arn:aws:rekognition:region:account:project/name/version/version-name/timestamp
+	re := regexp.MustCompile(`^(arn:aws:rekognition:[^:]+:[^:]+:project/[^/]+)/version/([^/]+)/\d+$`)
+
+	matches := re.FindStringSubmatch(fullARN)
+	if len(matches) != 3 {
+		return "", fmt.Errorf("invalid ARN format: %s", fullARN)
+	}
+
+	return matches[2], nil
+}

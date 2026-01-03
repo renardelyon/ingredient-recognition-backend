@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"ingredient-recognition-backend/pkg/utils"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/rekognition"
@@ -90,6 +91,46 @@ func (rc *RekognitionClient) DetectCustomLabels(ctx context.Context, imageData [
 	}
 
 	return labels, nil
+}
+
+// CheckAndStartRekognition checks if Rekognition is available and attempts to start it if needed
+// if the result is true, Rekognition is ready to use, otherwise it is starting up
+func (rc *RekognitionClient) CheckAndStartRekognition(ctx context.Context, projectArn, modelArn string) (bool, error) {
+	// Attempt to describe the Rekognition service to check if it's available
+	// We'll use a simple DescribeProjectVersions call to test connectivity
+	modelVersion, err := utils.ParseModelARNTOModelVersion(modelArn)
+	if err != nil {
+		return false, fmt.Errorf("failed to parse model ARN: %w", err)
+	}
+
+	output, err := rc.client.DescribeProjectVersions(ctx, &rekognition.DescribeProjectVersionsInput{
+		ProjectArn:   &projectArn,
+		VersionNames: []string{modelVersion},
+	})
+	if err != nil {
+		// Log the error but attempt recovery
+		return false, fmt.Errorf("rekognition service check failed: %w", err)
+	}
+
+	if output == nil || len(output.ProjectVersionDescriptions) == 0 {
+		return false, fmt.Errorf("no project version descriptions found")
+	}
+
+	var MinInferenceUnits int32 = 1
+	status := output.ProjectVersionDescriptions[0].Status
+	if status == types.ProjectVersionStatusStopped {
+		_, err = rc.client.StartProjectVersion(ctx, &rekognition.StartProjectVersionInput{
+			ProjectVersionArn: &modelArn,
+			MinInferenceUnits: &MinInferenceUnits,
+		})
+		if err != nil {
+			return false, fmt.Errorf("failed to start rekognition project version: %w", err)
+		}
+
+		return false, nil
+	}
+
+	return true, nil
 }
 
 // DetectCustomLabelsFromS3 detects custom labels in an S3 image
