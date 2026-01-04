@@ -11,6 +11,10 @@ type Ingredient struct {
 	Unit     string  `json:"unit"`
 }
 
+type IngredientList struct {
+	Ingredients []string `json:"ingredients"`
+}
+
 // Validate checks if the ingredient has valid data.
 func (i *Ingredient) Validate() error {
 	if i.Name == "" {

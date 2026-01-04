@@ -29,5 +29,5 @@ func (h *IngredientHandler) DetectIngredientsWithCustomLabels(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"ingredients": ingredients})
+	c.JSON(http.StatusOK, ingredients)
 }

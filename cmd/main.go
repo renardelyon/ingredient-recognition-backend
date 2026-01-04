@@ -79,6 +79,7 @@ func main() {
 	// Add logging and error handling middleware
 	router.Use(middleware.LoggingMiddleware())
 	router.Use(middleware.ErrorHandlingMiddleware())
+	router.Use(middleware.CorsMiddleware())
 
 	// Public routes (no auth required)
 	router.POST("/auth/register", authHandler.Register)

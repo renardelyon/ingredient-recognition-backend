@@ -65,3 +65,11 @@ func ParseModelARNTOModelVersion(fullARN string) (modelVersion string, err error
 
 	return matches[2], nil
 }
+
+func ParseMapToList[K, V comparable](input map[K]V) []K {
+	result := make([]K, 0, len(input))
+	for key := range input {
+		result = append(result, key)
+	}
+	return result
+}

@@ -70,12 +70,12 @@ func (rc *RekognitionClient) DetectLabelsFromS3(ctx context.Context, bucket, key
 }
 
 // DetectCustomLabels detects custom labels in an image using a trained model
-func (rc *RekognitionClient) DetectCustomLabels(ctx context.Context, imageData []byte, projectARN, modelVersion string, minConfidence float32) (map[string]float32, error) {
+func (rc *RekognitionClient) DetectCustomLabels(ctx context.Context, imageData []byte, projectVersionARN string, minConfidence float32) (map[string]float32, error) {
 	input := &rekognition.DetectCustomLabelsInput{
 		Image: &types.Image{
 			Bytes: imageData,
 		},
-		ProjectVersionArn: aws.String(projectARN),
+		ProjectVersionArn: aws.String(projectVersionARN),
 		MinConfidence:     aws.Float32(minConfidence),
 	}
 

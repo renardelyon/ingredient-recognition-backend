@@ -6,6 +6,7 @@ import (
 	"ingredient-recognition-backend/internal/aws"
 	"ingredient-recognition-backend/internal/domain"
 	"ingredient-recognition-backend/pkg/logger"
+	"ingredient-recognition-backend/pkg/utils"
 	"mime/multipart"
 	"strings"
 
@@ -15,7 +16,7 @@ import (
 // DetectorService defines the interface for detecting ingredients from images.
 type DetectorService interface {
 	DetectIngredientsFromImage(ctx context.Context, file *multipart.FileHeader) ([]domain.Ingredient, error)
-	DetectIngredientsFromImageWithCustomLabels(ctx context.Context, file *multipart.FileHeader) ([]domain.Ingredient, error)
+	DetectIngredientsFromImageWithCustomLabels(ctx context.Context, file *multipart.FileHeader) (*domain.IngredientList, error)
 }
 
 // detectorService is a concrete implementation of the DetectorService interface.
@@ -78,7 +79,7 @@ func (d *detectorService) DetectIngredientsFromImage(ctx context.Context, file *
 }
 
 // DetectIngredientsFromImageWithCustomLabels reads an uploaded file and detects ingredients using custom labels
-func (d *detectorService) DetectIngredientsFromImageWithCustomLabels(ctx context.Context, file *multipart.FileHeader) ([]domain.Ingredient, error) {
+func (d *detectorService) DetectIngredientsFromImageWithCustomLabels(ctx context.Context, file *multipart.FileHeader) (*domain.IngredientList, error) {
 	logger.Info(ctx, "Starting custom labels ingredient detection", zap.String("filename", file.Filename), zap.Int64("size_bytes", file.Size))
 	projectArn, modelArn := d.config.ProjectARN, d.config.ModelArn
 
@@ -114,16 +115,20 @@ func (d *detectorService) DetectIngredientsFromImageWithCustomLabels(ctx context
 		return nil, fmt.Errorf("custom labels configuration not set")
 	}
 
-	labels, err := d.awsClient.Rekognition.DetectCustomLabels(ctx, buf, projectArn, modelArn, d.config.MinConfidence)
+	labels, err := d.awsClient.Rekognition.DetectCustomLabels(ctx, buf, modelArn, d.config.MinConfidence)
 	if err != nil {
 		logger.Error(ctx, "Failed to detect custom labels from Rekognition", err, zap.String("filename", file.Filename), zap.String("project_arn", d.config.ProjectARN))
 		return nil, err
 	}
 
-	// Convert labels with confidence scores to ingredients
-	ingredients := d.customLabelsToIngredients(labels)
+	ingredients := utils.ParseMapToList(labels)
+
+	ingredientList := domain.IngredientList{
+		Ingredients: ingredients,
+	}
+
 	logger.Info(ctx, "Custom labels ingredient detection completed", zap.String("filename", file.Filename), zap.Int("ingredient_count", len(ingredients)))
-	return ingredients, nil
+	return &ingredientList, nil
 }
 
 // labelsToIngredients converts AWS Rekognition labels to domain Ingredient objects
