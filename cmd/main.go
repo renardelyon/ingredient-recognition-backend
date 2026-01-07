@@ -69,8 +69,10 @@ func main() {
 		ingredientHandler = handler.NewIngredientHandler(customDetectorService)
 	}
 
+	recipeRepo := repository.NewRecipeRepository(awsClient.DynamoDB)
+
 	// Initialize recipe service with Bedrock
-	recipeService := service.NewRecipeService(awsClient.BedrockRuntime, cfg.BedrockModelID)
+	recipeService := service.NewRecipeService(awsClient.BedrockRuntime, recipeRepo, cfg.BedrockModelID)
 	recipeHandler := handler.NewRecipeHandler(recipeService)
 
 	// Create Gin router
@@ -97,6 +99,12 @@ func main() {
 	routeVersion.Use(middleware.AuthMiddleware(authService))
 	routeVersion.POST("/detect", ingredientHandler.DetectIngredientsWithCustomLabels)
 	routeVersion.POST("/recipes/recommend", recipeHandler.RecommendRecipes)
+
+	// Saved recipe routes
+	routeVersion.POST("/recipes/saved", recipeHandler.SaveRecipe)
+	routeVersion.GET("/recipes/saved", recipeHandler.GetUserRecipes)
+	routeVersion.GET("/recipes/saved/:id", recipeHandler.GetRecipeByID)
+	routeVersion.DELETE("/recipes/saved/:id", recipeHandler.DeleteRecipe)
 
 	// Start the server
 	logger.Info(ctx, "Starting server", zap.String("address", cfg.ServerAddress))

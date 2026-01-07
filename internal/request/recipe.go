@@ -26,3 +26,15 @@ type BedrockModelConfig struct {
 type RecommendRecipesRequest struct {
 	Ingredients []string `json:"ingredients" binding:"required,min=1"`
 }
+
+// SaveRecipeRequest represents the request to save a recipe
+type SaveRecipeRequest struct {
+	Name         string   `json:"name" binding:"required"`
+	Cuisine      string   `json:"cuisine" binding:"required"`
+	CookingTime  string   `json:"cooking_time" binding:"required"`
+	Difficulty   string   `json:"difficulty" binding:"required"`
+	Ingredients  []string `json:"ingredients" binding:"required,min=1"`
+	Instructions []string `json:"instructions" binding:"required,min=1"`
+	Nutrition    string   `json:"nutrition,omitempty"`
+	Tips         string   `json:"tips,omitempty"`
+}

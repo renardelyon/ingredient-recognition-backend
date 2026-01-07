@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"ingredient-recognition-backend/internal/domain"
 	"ingredient-recognition-backend/internal/model"
+	"ingredient-recognition-backend/internal/repository"
 	"ingredient-recognition-backend/internal/request"
 	"ingredient-recognition-backend/pkg/logger"
 	"ingredient-recognition-backend/pkg/utils"
@@ -13,25 +15,32 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
 // RecipeService defines methods for recipe recommendations
 type RecipeService interface {
 	RecommendRecipes(ctx context.Context, ingredients []string) (*model.RecipeRecommendation, error)
+	SaveRecipe(ctx context.Context, userID string, req *request.SaveRecipeRequest) (*domain.SavedRecipe, error)
+	GetUserRecipes(ctx context.Context, userID string) ([]*domain.SavedRecipe, error)
+	GetRecipeByID(ctx context.Context, id string, userID string) (*domain.SavedRecipe, error)
+	DeleteRecipe(ctx context.Context, id string, userID string) error
 }
 
 // recipeService is a concrete implementation of RecipeService
 type recipeService struct {
 	bedrockClient *bedrockruntime.Client
 	modelID       string
+	recipeRepo    *repository.RecipeRepository
 }
 
 // NewRecipeService creates a new recipe service
-func NewRecipeService(bedrockClient *bedrockruntime.Client, modelID string) RecipeService {
+func NewRecipeService(bedrockClient *bedrockruntime.Client, recipeRepo *repository.RecipeRepository, modelID string) RecipeService {
 	return &recipeService{
 		bedrockClient: bedrockClient,
 		modelID:       modelID,
+		recipeRepo:    recipeRepo,
 	}
 }
 
@@ -114,6 +123,79 @@ func (r *recipeService) callBedrock(ctx context.Context, prompt string) (string,
 
 	logger.Error(ctx, "Unexpected response format from Bedrock", nil)
 	return "", fmt.Errorf("unexpected response format from Bedrock")
+}
+
+// SaveRecipe saves a recipe for the user
+func (s *recipeService) SaveRecipe(ctx context.Context, userID string, req *request.SaveRecipeRequest) (*domain.SavedRecipe, error) {
+	logger.Info(ctx, "Saving recipe for user", zap.String("user_id", userID), zap.String("recipe_name", req.Name))
+
+	now := time.Now()
+	recipe := &domain.SavedRecipe{
+		ID:           uuid.New().String(),
+		UserID:       userID,
+		Name:         req.Name,
+		Cuisine:      req.Cuisine,
+		CookingTime:  req.CookingTime,
+		Difficulty:   req.Difficulty,
+		Ingredients:  req.Ingredients,
+		Instructions: req.Instructions,
+		Nutrition:    req.Nutrition,
+		Tips:         req.Tips,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+
+	if err := s.recipeRepo.Save(ctx, recipe); err != nil {
+		logger.Error(ctx, "Failed to save recipe", err, zap.String("user_id", userID))
+		return nil, err
+	}
+
+	logger.Info(ctx, "Recipe saved successfully", zap.String("recipe_id", recipe.ID), zap.String("user_id", userID))
+	return recipe, nil
+}
+
+func (s *recipeService) GetUserRecipes(ctx context.Context, userID string) ([]*domain.SavedRecipe, error) {
+	logger.Info(ctx, "Getting saved recipes for user", zap.String("user_id", userID))
+
+	recipes, err := s.recipeRepo.GetByUserID(ctx, userID)
+	if err != nil {
+		logger.Error(ctx, "Failed to get user recipes", err, zap.String("user_id", userID))
+		return nil, err
+	}
+
+	logger.Info(ctx, "Retrieved saved recipes", zap.String("user_id", userID), zap.Int("count", len(recipes)))
+	return recipes, nil
+}
+
+func (s *recipeService) GetRecipeByID(ctx context.Context, id string, userID string) (*domain.SavedRecipe, error) {
+	logger.Info(ctx, "Getting saved recipe by ID", zap.String("recipe_id", id), zap.String("user_id", userID))
+
+	recipe, err := s.recipeRepo.GetByID(ctx, id)
+	if err != nil {
+		logger.Error(ctx, "Failed to get recipe", err, zap.String("recipe_id", id))
+		return nil, err
+	}
+
+	// Verify the recipe belongs to the user
+	if recipe.UserID != userID {
+		logger.Warn(ctx, "User attempted to access recipe they don't own", zap.String("recipe_id", id), zap.String("user_id", userID))
+		return nil, domain.ErrRecipeNotFound
+	}
+
+	return recipe, nil
+}
+
+// DeleteRecipe deletes a saved recipe
+func (s *recipeService) DeleteRecipe(ctx context.Context, id string, userID string) error {
+	logger.Info(ctx, "Deleting saved recipe", zap.String("recipe_id", id), zap.String("user_id", userID))
+
+	if err := s.recipeRepo.Delete(ctx, id, userID); err != nil {
+		logger.Error(ctx, "Failed to delete recipe", err, zap.String("recipe_id", id))
+		return err
+	}
+
+	logger.Info(ctx, "Recipe deleted successfully", zap.String("recipe_id", id), zap.String("user_id", userID))
+	return nil
 }
 
 // buildRecipePrompt creates a prompt for recipe generation
