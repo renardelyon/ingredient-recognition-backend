@@ -71,7 +71,7 @@ func (r *recipeService) callBedrock(ctx context.Context, prompt string) (string,
 
 	// Prepare the request payload for Claude model
 	payload := request.BedrockModelConfig{
-		AnthropicVersion: "bedrock-2023-06-01",
+		AnthropicVersion: "bedrock-2023-05-31",
 		MaxTokens:        2048,
 		Messages:         []request.Message{{Role: "user", Content: prompt}},
 	}
@@ -128,7 +128,8 @@ func buildRecipePrompt(ingredients []string) string {
 
 	return fmt.Sprintf(`Based on the following ingredients: %s
 
-Please recommend 3-5 recipes that can be made with these ingredients. For each recipe, provide:
+Please recommend 3-5 recipes that can be made with these ingredients
+and if there are additional ingredients needed, include them as well. For each recipe, provide:
 1. Recipe name
 2. Cuisine type
 3. Cooking time (in minutes)
